@@ -1,0 +1,24 @@
+{
+  "Maze": {
+    "maze_cols": 20,
+    "maze_rows": 15,
+    "maze_cell_size": 20,
+    "maze_seed": 1,
+    "maze_openings": true
+  },
+  "Style": {
+    "backgroundColor": -16777216,
+    "lineColor": -141259,
+    "lineWidth": 1.0833333730697632
+  },
+  "Page": {
+    "clip_landscape": false,
+    "clipping": false,
+    "clip_width": 800,
+    "margin": 0,
+    "clip_aspect_ratio": 0,
+    "clip_height": 600,
+    "paper_format": 3,
+    "global_scale": 1
+  }
+}

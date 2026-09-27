@@ -1,0 +1,4 @@
+# Normalize line endings to LF for all text files, regardless of OS/editor settings.
+# Prevents CRLF/LF mismatches between contributors from turning every diff/merge
+# into a full-file rewrite (see processing_xlib commit bcffc07 for what that looks like).
+* text=auto eol=lf
