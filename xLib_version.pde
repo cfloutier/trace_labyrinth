@@ -1,12 +1,18 @@
 String get_xlib_version()
 {
-  return "4.6.0";
+  return "4.7.0";
 }
 
 
 /*
 
  # CHANGELOG
+
+ ## [4.7.0] - 2026-09-27
+ - xLib_GUIPanel: new addRadio(name, labels, the_data, width_bt) overload to set each
+ item button's width (was hardcoded to 100) - for compact radios, e.g. trace_labyrinth's
+ 3x3 compass-point start/end grids (setItemsPerRow(3) + small setSpacingColumn()).
+ Existing overloads delegate with width_bt = 100: no behavior change for current callers.
 
  ## [4.6.0] - 2026-08-30
  - Export Page size: added A6 and A5 formats, inserted before A4 in the list. This

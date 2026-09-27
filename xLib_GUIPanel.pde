@@ -489,8 +489,13 @@ class GUIPanel implements ControlListener
 
   myRadioButton addRadio(String name, ArrayList<String> labels, GenericData the_data)
   {
-    int width_bt = 100;
+    return addRadio(name, labels, the_data, 100);
+  }
 
+  // width_bt: width of each item button (default 100) - smaller values make compact
+  // radios (e.g. short labels laid out as a grid with setItemsPerRow()).
+  myRadioButton addRadio(String name, ArrayList<String> labels, GenericData the_data, int width_bt)
+  {
     // return addRadioButton( the_data , the_data != null ? the_data.toString( ) : "" , name , 0 , 0 );
     myRadioButton r1 = new myRadioButton( cp5, ( Tab ) cp5.controlWindow.getTabs( ).get( 1 ), name, 0, 0 );
     cp5.register( the_data, the_data != null ? the_data.toString( ) : "", r1 );

@@ -11,13 +11,20 @@ class DataMaze extends GenericData
   int     maze_rows      = 15;
   float   maze_cell_size = 20;
   int     maze_seed      = 1;
-  // Opens an entrance in the top-left cell's top wall and an exit in the bottom-right
-  // cell's bottom wall.
+  // Entrance / exit positions on a 3x3 layout, row-major: 0 = top left, 1 = top,
+  // 2 = top right, 3 = left, 4 = center, 5 = right, 6 = bottom left, 7 = bottom,
+  // 8 = bottom right (see MazeGenerator.endpoint()).
+  int     maze_start     = 0;
+  int     maze_end       = 8;
+  // Opens the entrance / exit in the outer wall (not for the center, which has none).
   boolean maze_openings  = true;
 
-  // Growing-tree texture controls (see MazeGenerator.generate()):
-  // river: 1 = always extend from the newest cell (depth-first: long winding corridors,
-  // few dead ends), 0 = from a random cell (Prim-like: many short dead ends).
+  // Same two knobs as mazegenerator.net (see MazeGenerator's class comment):
+  // elitism (E): 1 = short, direct solution; 0 = long solution wandering through much
+  // of the maze.
+  float   maze_elitism      = 0.5;
+  // river (R): 1 = few but long dead ends (the rest grows depth-first from the newest
+  // cell), 0 = many short dead ends (grows from a random cell, Prim-like).
   float   maze_river        = 1;
   // straightness: chance of carving on in the same direction as the previous step -
   // high values give long straight runs, 0 = no directional preference.
@@ -37,6 +44,9 @@ class MazeGUI extends GUIPanel
   Slider maze_rows;
   Slider maze_cell_size;
   Toggle maze_openings;
+  myRadioButton maze_start;
+  myRadioButton maze_end;
+  Slider maze_elitism;
   Slider maze_river;
   Slider maze_straightness;
   Toggle maze_show_solution;
@@ -58,21 +68,37 @@ class MazeGUI extends GUIPanel
   {
     super.Init();
 
-    maze_cols = addIntSlider("maze_cols", "Columns", 2, 200);
-    maze_rows = addIntSlider("maze_rows", "Rows", 2, 200);
+    addButton("New Seed").plugTo(this, "newSeed");
+
     nextLine();
-    maze_cell_size = addSlider("maze_cell_size", "Cell Size", 2, 100);
+    maze_cols = addIntSlider("maze_cols", "Columns", 2, 500);
+    maze_rows = addIntSlider("maze_rows", "Rows", 2, 500);
+    maze_cell_size = addSlider("maze_cell_size", "Cell Size", 2, 20);
+
     nextLine();
-    maze_river = addSlider("maze_river", "River", 0, 1);
+    maze_elitism = addSlider("maze_elitism", "Elitism (E)", 0, 1);
+    maze_river = addSlider("maze_river", "River (R)", 0, 1);
+    nextLine();
     maze_straightness = addSlider("maze_straightness", "Straightness", 0, 1);
     nextLine();
+        nextLine();
     maze_openings = addToggle("maze_openings", "Entrance / Exit");
     nextLine();
-    addButton("New Seed").plugTo(this, "newSeed");
+
+    // Start and End as two compact 3x3 grids side by side, labeled inline.
+    float gridTop = yPos;
+    inlineLabel("Start", 40);
+    maze_start = addPositionGrid("maze_start");
+    yPos = gridTop;
+    xPos = StartX + 40 + GRID_WIDTH + 30;
+    inlineLabel("End", 30);
+    maze_end = addPositionGrid("maze_end");
+    xPos = StartX;
+    yPos = gridTop + 3 * (heightCtrl + GRID_SPACING);
+
     nextLine();
 
     maze_show_solution = addToggle("maze_show_solution", "Show Solution");
-    nextLine();
     // Color is read every frame when drawing - no need to flag a rebuild.
     maze_solution_color = addColorChooser("Solution Color", new ColorSetter()
     {
@@ -86,12 +112,35 @@ class MazeGUI extends GUIPanel
     );
   }
 
+  static final int GRID_BUTTON = 30;
+  static final int GRID_SPACING = 2;
+  static final int GRID_WIDTH = 3 * GRID_BUTTON + 2 * GRID_SPACING;
+
+  // A radio of the 9 positions laid out as a compact 3x3 grid, labeled with compass
+  // points (item order = DataMaze's maze_start/maze_end codes; C = center).
+  myRadioButton addPositionGrid(String field)
+  {
+    ArrayList<String> labels = new ArrayList<String>();
+    String[] names = { "NW", "N", "NE", "W", "C", "E", "SW", "S", "SE" };
+    for (String n : names)
+      labels.add(n);
+
+    myRadioButton radio = addRadio(field, labels, maze, GRID_BUTTON);
+    radio.setItemsPerRow(3);
+    radio.setSpacingColumn(GRID_SPACING);
+    radio.setSpacingRow(GRID_SPACING);
+    return radio;
+  }
+
   void setGUIValues()
   {
+    maze_start.activate(maze.maze_start);
+    maze_end.activate(maze.maze_end);
     maze_cols.setValue(maze.maze_cols);
     maze_rows.setValue(maze.maze_rows);
     maze_cell_size.setValue(maze.maze_cell_size);
     maze_openings.setValue(maze.maze_openings);
+    maze_elitism.setValue(maze.maze_elitism);
     maze_river.setValue(maze.maze_river);
     maze_straightness.setValue(maze.maze_straightness);
     maze_show_solution.setValue(maze.maze_show_solution);

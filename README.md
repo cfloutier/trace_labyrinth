@@ -11,17 +11,27 @@ shared xLib (settings load/save, GUI tabs, clipping, direct SVG export).
 
 ## Maze
 
-Rectangular grid maze carved by the "growing tree" algorithm: a "perfect" maze,
-exactly one path between any two cells. River and Straightness change its texture live.
+Rectangular grid "perfect" maze (exactly one path between any two cells), with the
+same two knobs as [mazegenerator.net](https://www.mazegenerator.net/Help.aspx),
+independent of each other:
+- **Elitism (E)** — solution length: the solution path is carved first, by a
+  depth-first walk from entrance to exit whose steps lean toward the exit (E=1: short,
+  direct solution) or away from it (E=0: solution wandering through almost the whole
+  maze).
+- **River (R)** — dead-end texture: the rest of the maze then grows off that path by
+  the "growing tree" algorithm, extending the newest cell (R=1: few but long dead ends)
+  or a random one (R=0: many short dead ends).
 
 | Parameter | Role |
 |-----------|------|
 | `maze_cols` / `maze_rows` | Grid size in cells |
 | `maze_cell_size` | Cell size (drawing units) |
 | `maze_seed` | Random seed — the "New Seed" button draws a new one; same seed + params = same maze |
-| `maze_river` | 1 = always grow from the newest cell (depth-first: long winding corridors, few dead ends, long solution); 0 = from a random cell (Prim-like: many short dead ends, short direct solution) |
-| `maze_straightness` | Chance to keep carving in the same direction — higher = long straight corridors |
-| `maze_openings` | Opens an entrance (top-left) and an exit (bottom-right) in the outer wall |
+| `maze_elitism` | E, 0..1 — 1 = short direct solution, 0 = long wandering solution (0.5 = unbiased walk) |
+| `maze_river` | R, 0..1 — 1 = few but long dead ends, 0 = many short dead ends |
+| `maze_straightness` | Extra (not in mazegenerator.net): chance to keep carving in the same direction outside the solution path — higher = long straight corridors |
+| `maze_start` / `maze_end` | Entrance / exit position, picked on a 3x3 grid: a corner, the middle of a side, or the center (0 = top left … 4 = center … 8 = bottom right). Corners open through their top/bottom wall, sides through the wall facing out, the center has no opening (classic "reach the center" maze) |
+| `maze_openings` | Opens the entrance / exit in the outer wall |
 | `maze_show_solution` | Draws the solution path (entrance → exit, through cell centers) |
 | Solution Color | Color of the solution path (display only) |
 
