@@ -6,6 +6,7 @@ class DataGUI extends MainPanel
   FileGUI  file_ui;
   StyleGUI style_ui;
   MazeGUI  maze_ui;
+  RenderGUI render_ui;
 
   public DataGUI(LabyrinthData data)
   {
@@ -13,6 +14,7 @@ class DataGUI extends MainPanel
     file_ui  = new FileGUI(data, true);
     style_ui = new StyleGUI(data.style);
     maze_ui  = new MazeGUI(data.maze);
+    render_ui = new RenderGUI(data.render);
   }
 
   void Init()
@@ -20,6 +22,7 @@ class DataGUI extends MainPanel
     addTab(file_ui);
     addTab(style_ui);
     addTab(maze_ui);
+    addTab(render_ui);
 
     super.Init();
 

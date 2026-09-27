@@ -13,6 +13,7 @@ ColorChooserPopup colorPopup;
 PolylineGroup lineGroup = new PolylineGroup();
 PolylineGroup solutionGroup = new PolylineGroup();
 MazeGenerator maze = new MazeGenerator();
+MazeRenderer mazeRenderer = new MazeRenderer();
 
 void setup()
 {
@@ -42,10 +43,14 @@ void draw()
   start_draw();
 
   boolean maze_changed = data.maze.changed;
+  boolean render_changed = data.render.changed;
   boolean page_changed = data.page.changed;
   data.reset_all_changes();
 
-  if (maze_changed || page_changed)
+  // Render options only change how the walls are drawn - no need to regenerate.
+  if (maze_changed)
+    maze.generate(data.maze);
+  if (maze_changed || render_changed || page_changed)
     buildLines();
 
   lineGroup.draw(data.page.clipping, data.page.clip_width, data.page.clip_height);
@@ -65,13 +70,12 @@ void draw()
 
 void buildLines()
 {
-  maze.generate(data.maze);
-
   lineGroup.clear();
-  maze.buildWalls(data.maze, lineGroup);
+  mazeRenderer.buildWalls(maze, data.maze, data.render, lineGroup);
 
   solutionGroup.clear();
   maze.buildSolution(data.maze, solutionGroup);
+  mazeRenderer.roundSolution(solutionGroup, data.maze, data.render);
 
   file_ui.updateExportScale(lineGroup.getBoundingBox(data.page.clipping, data.page.clip_width, data.page.clip_height));
 }

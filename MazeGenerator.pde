@@ -9,6 +9,8 @@
 //    extended next (newest vs random - maze_river) plus whether a passage keeps its
 //    direction (maze_straightness) set the dead-end texture. Everything grows off the
 //    path as a tree, so the path stays the one and only solution.
+// When the entrance or exit is the center, it's a 3x3 open room (see carveRoom()) with
+// a single door: the solution walk starts from the room, and phase 2 never grows into it.
 // Uses its own java.util.Random seeded from DataMaze.maze_seed, so a given seed + params
 // always give the same maze regardless of any other random() calls in the sketch.
 class MazeGenerator
@@ -51,6 +53,14 @@ class MazeGenerator
     }
   }
 
+  // Center endpoint (DataMaze position code) and its 3x3 "start room": an open square
+  // with no inner walls, reached through a single door so the maze keeps exactly one
+  // solution. Only used when the grid leaves at least one cell of corridor around it.
+  static final int CENTER = 4;
+  static final int ROOM_SIZE = 3;
+  boolean roomActive = false;
+  boolean[][] isRoom = new boolean[0][0];
+
   void generate(DataMaze d)
   {
     cols = max(1, d.maze_cols);
@@ -71,23 +81,50 @@ class MazeGenerator
 
     int[] candidates = new int[4];
 
-    // Phase 1 - solution path (see class comment).
-    ArrayList<int[]> path = carveSolutionPath(d.maze_elitism, rnd);
-    for (int i = 0; i < path.size(); i++)
+    isRoom = new boolean[rows][cols];
+    roomActive = (d.maze_start == CENTER || d.maze_end == CENTER)
+      && rows >= ROOM_SIZE + 2 && cols >= ROOM_SIZE + 2;
+    if (roomActive)
+      carveRoom(visited);
+
+    // Phase 1 - solution path (see class comment). With a room, the walk always starts
+    // from it (swapping entrance/exit when the room is the exit - the path is the same
+    // either way), so the room's single door is simply the walk's first step.
+    int[] src = startCell;
+    int[] dst = endCell;
+    if (roomActive && d.maze_end == CENTER)
     {
-      int[] cell = path.get(i);
-      visited[cell[0]][cell[1]] = true;
-      cameFrom[cell[0]][cell[1]] = NO_DIR;
-      if (i > 0)
+      src = endCell;
+      dst = startCell;
+    }
+    ArrayList<int[]> path = carveSolutionPath(d.maze_elitism, rnd, src, dst);
+
+    // Phase 2 - growing tree off the path (room cells excluded, so nothing else opens a
+    // second door into it). Active cells as {row, col}; newest at the end.
+    ArrayList<int[]> active = new ArrayList<int[]>();
+    for (int[] e : path)
+    {
+      visited[e[0]][e[1]] = true;
+      cameFrom[e[0]][e[1]] = NO_DIR;
+      if (e[2] >= 0)
       {
-        int[] prevCell = path.get(i - 1);
-        removeWallBetween(prevCell[0], prevCell[1], cell[0], cell[1]);
-        cameFrom[cell[0]][cell[1]] = dirBetween(prevCell, cell);
+        removeWallBetween(e[2], e[3], e[0], e[1]);
+        cameFrom[e[0]][e[1]] = dirBetween(new int[] { e[2], e[3] }, e);
       }
+      if (!isRoom[e[0]][e[1]])
+        active.add(new int[] { e[0], e[1] });
     }
 
-    // Phase 2 - growing tree off the path. Active cells as {row, col}; newest at the end.
-    ArrayList<int[]> active = new ArrayList<int[]>(path);
+    // Entrance = exit = center: the walk never left the room - open its door at random.
+    if (roomActive && active.isEmpty())
+    {
+      ArrayList<int[]> doors = roomExits(visited);
+      int[] m = doors.get(rnd.nextInt(doors.size()));
+      removeWallBetween(m[0], m[1], m[2], m[3]);
+      visited[m[2]][m[3]] = true;
+      cameFrom[m[2]][m[3]] = dirBetween(m, new int[] { m[2], m[3] });
+      active.add(new int[] { m[2], m[3] });
+    }
 
     while (!active.isEmpty())
     {
@@ -138,6 +175,45 @@ class MazeGenerator
     }
   }
 
+  // Opens the ROOM_SIZE x ROOM_SIZE square around the center cell (no inner walls) and
+  // marks it visited.
+  void carveRoom(boolean[][] visited)
+  {
+    int r0 = rows / 2 - ROOM_SIZE / 2;
+    int c0 = cols / 2 - ROOM_SIZE / 2;
+    for (int r = r0; r < r0 + ROOM_SIZE; r++)
+    {
+      for (int c = c0; c < c0 + ROOM_SIZE; c++)
+      {
+        isRoom[r][c] = true;
+        visited[r][c] = true;
+        if (r + 1 < r0 + ROOM_SIZE) hWalls[r + 1][c] = false;
+        if (c + 1 < c0 + ROOM_SIZE) vWalls[r][c + 1] = false;
+      }
+    }
+  }
+
+  // Every possible door out of the room: {roomRow, roomCol, outRow, outCol} for each
+  // room cell / outside neighbor pair not yet in `seen`.
+  ArrayList<int[]> roomExits(boolean[][] seen)
+  {
+    ArrayList<int[]> out = new ArrayList<int[]>();
+    for (int r = 0; r < rows; r++)
+      for (int c = 0; c < cols; c++)
+      {
+        if (!isRoom[r][c])
+          continue;
+        for (int i = 0; i < 4; i++)
+        {
+          int nr = r + DIRS[i][0];
+          int nc = c + DIRS[i][1];
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !isRoom[nr][nc] && !seen[nr][nc])
+            out.add(new int[] { r, c, nr, nc });
+        }
+      }
+    return out;
+  }
+
   void openOutside(int[] e)
   {
     int r = e[0], c = e[1];
@@ -148,23 +224,29 @@ class MazeGenerator
     else                vWalls[r][c + 1] = false;
   }
 
-  // Depth-first walk from startCell to endCell. At each step, with probability
-  // `elitism` it moves to a neighbor that gets closer to the exit (Manhattan distance),
-  // otherwise to one that doesn't - falling back to whatever is available. Dead ends
-  // are backtracked out of (and stay marked, so the walk always terminates), so the
-  // stack left when the exit is reached is a simple path.
-  ArrayList<int[]> carveSolutionPath(float elitism, Random rnd)
+  // Depth-first walk from `src` to `dst`. At each step, with probability `elitism` it
+  // moves to a neighbor that gets closer to the exit (Manhattan distance), otherwise to
+  // one that doesn't - falling back to whatever is available. Dead ends are backtracked
+  // out of (and stay marked, so the walk always terminates), so the stack left when the
+  // exit is reached is a simple path. From the room, a step can leave through any of
+  // its border cells. Entries are {row, col, fromRow, fromCol} (from = -1 for the
+  // first), so the walls to carve are known even for the room's door.
+  ArrayList<int[]> carveSolutionPath(float elitism, Random rnd, int[] src, int[] dst)
   {
-    int gr = endCell[0];
-    int gc = endCell[1];
+    int gr = dst[0];
+    int gc = dst[1];
 
     boolean[][] seen = new boolean[rows][cols];
-    ArrayList<int[]> stack = new ArrayList<int[]>();
-    stack.add(new int[] { startCell[0], startCell[1] });
-    seen[startCell[0]][startCell[1]] = true;
+    for (int r = 0; r < rows; r++)
+      for (int c = 0; c < cols; c++)
+        seen[r][c] = isRoom[r][c];
 
-    int[] toward = new int[4];
-    int[] away = new int[4];
+    ArrayList<int[]> stack = new ArrayList<int[]>();
+    stack.add(new int[] { src[0], src[1], -1, -1 });
+    seen[src[0]][src[1]] = true;
+
+    ArrayList<int[]> toward = new ArrayList<int[]>();
+    ArrayList<int[]> away = new ArrayList<int[]>();
 
     while (true)
     {
@@ -174,32 +256,43 @@ class MazeGenerator
       if (r == gr && c == gc)
         return stack;
 
-      int nt = 0, na = 0;
-      int dist = abs(gr - r) + abs(gc - c);
-      for (int i = 0; i < 4; i++)
+      // Candidate moves as {fromRow, fromCol, toRow, toCol}.
+      ArrayList<int[]> moves;
+      if (isRoom[r][c])
+        moves = roomExits(seen);
+      else
       {
-        int nr = r + DIRS[i][0];
-        int nc = c + DIRS[i][1];
-        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || seen[nr][nc])
-          continue;
-        if (abs(gr - nr) + abs(gc - nc) < dist)
-          toward[nt++] = i;
-        else
-          away[na++] = i;
+        moves = new ArrayList<int[]>();
+        for (int i = 0; i < 4; i++)
+        {
+          int nr = r + DIRS[i][0];
+          int nc = c + DIRS[i][1];
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !seen[nr][nc])
+            moves.add(new int[] { r, c, nr, nc });
+        }
       }
 
-      if (nt + na == 0)
+      if (moves.isEmpty())
       {
         stack.remove(stack.size() - 1);
         continue;
       }
 
-      boolean goToward = (na == 0) || (nt > 0 && rnd.nextFloat() < elitism);
-      int dir = goToward ? toward[rnd.nextInt(nt)] : away[rnd.nextInt(na)];
-      int nr = r + DIRS[dir][0];
-      int nc = c + DIRS[dir][1];
-      seen[nr][nc] = true;
-      stack.add(new int[] { nr, nc });
+      toward.clear();
+      away.clear();
+      int dist = abs(gr - r) + abs(gc - c);
+      for (int[] m : moves)
+      {
+        if (abs(gr - m[2]) + abs(gc - m[3]) < dist)
+          toward.add(m);
+        else
+          away.add(m);
+      }
+
+      boolean goToward = away.isEmpty() || (!toward.isEmpty() && rnd.nextFloat() < elitism);
+      int[] m = goToward ? toward.get(rnd.nextInt(toward.size())) : away.get(rnd.nextInt(away.size()));
+      seen[m[2]][m[3]] = true;
+      stack.add(new int[] { m[2], m[3], m[0], m[1] });
     }
   }
 
@@ -229,40 +322,6 @@ class MazeGenerator
     if (dir == 1) return !hWalls[r + 1][c];
     if (dir == 2) return !vWalls[r][c];
     return !vWalls[r][c + 1];
-  }
-
-  // Emits the walls as polylines, centered on (0,0). Consecutive wall segments on the
-  // same grid line are merged into a single polyline - one pen-down stroke per run
-  // instead of one per cell edge, which matters a lot on a plotter.
-  void buildWalls(DataMaze d, PolylineGroup out)
-  {
-    float cs = d.maze_cell_size;
-    float x0 = -cols * cs * 0.5;
-    float y0 = -rows * cs * 0.5;
-
-    for (int r = 0; r <= rows; r++)
-    {
-      int c = 0;
-      while (c < cols)
-      {
-        if (!hWalls[r][c]) { c++; continue; }
-        int start = c;
-        while (c < cols && hWalls[r][c]) c++;
-        out.add(segment(x0 + start * cs, y0 + r * cs, x0 + c * cs, y0 + r * cs));
-      }
-    }
-
-    for (int c = 0; c <= cols; c++)
-    {
-      int r = 0;
-      while (r < rows)
-      {
-        if (!vWalls[r][c]) { r++; continue; }
-        int start = r;
-        while (r < rows && vWalls[r][c]) r++;
-        out.add(segment(x0 + c * cs, y0 + start * cs, x0 + c * cs, y0 + r * cs));
-      }
-    }
   }
 
   // Shortest (in a perfect maze: the only) path from the entrance cell to the exit
@@ -349,13 +408,5 @@ class MazeGenerator
   boolean isCollinear(PVector a, PVector b, PVector c)
   {
     return abs((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)) < 1e-4;
-  }
-
-  Polyline segment(float xa, float ya, float xb, float yb)
-  {
-    Polyline p = new Polyline();
-    p.addPoint(new PVector(xa, ya));
-    p.addPoint(new PVector(xb, yb));
-    return p;
   }
 }
