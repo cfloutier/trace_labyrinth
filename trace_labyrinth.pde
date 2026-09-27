@@ -11,6 +11,7 @@ ControlP5 cp5;
 ColorChooserPopup colorPopup;
 
 PolylineGroup lineGroup = new PolylineGroup();
+PolylineGroup solutionGroup = new PolylineGroup();
 MazeGenerator maze = new MazeGenerator();
 
 void setup()
@@ -49,6 +50,14 @@ void draw()
 
   lineGroup.draw(data.page.clipping, data.page.clip_width, data.page.clip_height);
 
+  if (data.maze.maze_show_solution)
+  {
+    current_graphics.pushStyle();
+    current_graphics.stroke(data.maze.maze_solution_color);
+    solutionGroup.draw(data.page.clipping, data.page.clip_width, data.page.clip_height);
+    current_graphics.popStyle();
+  }
+
   end_draw();
 
   dataGui.draw();
@@ -60,6 +69,9 @@ void buildLines()
 
   lineGroup.clear();
   maze.buildWalls(data.maze, lineGroup);
+
+  solutionGroup.clear();
+  maze.buildSolution(data.maze, solutionGroup);
 
   file_ui.updateExportScale(lineGroup.getBoundingBox(data.page.clipping, data.page.clip_width, data.page.clip_height));
 }

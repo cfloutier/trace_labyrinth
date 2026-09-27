@@ -11,15 +11,21 @@ shared xLib (settings load/save, GUI tabs, clipping, direct SVG export).
 
 ## Maze
 
-Rectangular grid maze carved by an iterative depth-first search (recursive
-backtracker): a "perfect" maze, exactly one path between any two cells.
+Rectangular grid maze carved by the "growing tree" algorithm: a "perfect" maze,
+exactly one path between any two cells. River and Straightness change its texture live.
 
 | Parameter | Role |
 |-----------|------|
 | `maze_cols` / `maze_rows` | Grid size in cells |
 | `maze_cell_size` | Cell size (drawing units) |
-| `maze_seed` | Random seed — the "New Seed" button draws a new one; same seed = same maze |
+| `maze_seed` | Random seed — the "New Seed" button draws a new one; same seed + params = same maze |
+| `maze_river` | 1 = always grow from the newest cell (depth-first: long winding corridors, few dead ends, long solution); 0 = from a random cell (Prim-like: many short dead ends, short direct solution) |
+| `maze_straightness` | Chance to keep carving in the same direction — higher = long straight corridors |
 | `maze_openings` | Opens an entrance (top-left) and an exit (bottom-right) in the outer wall |
+| `maze_show_solution` | Draws the solution path (entrance → exit, through cell centers) |
+| Solution Color | Color of the solution path (display only) |
+
+Note: the direct SVG export ("SVG direct") only contains the walls, not the solution.
 
 Walls are emitted as polylines with consecutive segments on the same grid line merged
 into one stroke, to minimize pen lifts on the plotter.

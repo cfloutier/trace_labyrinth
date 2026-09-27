@@ -4,7 +4,11 @@
     "maze_rows": 15,
     "maze_cell_size": 20,
     "maze_seed": 1,
-    "maze_openings": true
+    "maze_openings": true,
+    "maze_river": 1,
+    "maze_straightness": 0,
+    "maze_show_solution": false,
+    "maze_solution_color": -50116
   },
   "Style": {
     "backgroundColor": -16777216,
