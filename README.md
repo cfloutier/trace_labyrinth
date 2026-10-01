@@ -34,6 +34,9 @@ independent of each other:
 | `maze_openings` | Opens the entrance / exit in the outer wall |
 | `maze_show_solution` | Draws the solution path (entrance → exit, through cell centers) |
 | Solution Color | Color of the solution path (display only) |
+| `maze_show_branches` | Preview of every other passage (the dead-end branches), through cell centers, under the walls — screen only, never exported. Colored by depth = how many forks away from the solution (a branch leaving the solution directly is depth 1, one forking off it is depth 2, …; the center room counts as solution). A bottom-left readout shows the dead-end count and max depth |
+| `maze_branch_depth_scale` | "Depth Colors": number of distinct rainbow colors (yellow → green → cyan → blue → magenta, no red: that's the solution) — depth 1 = first color, so a color always means the same depth whatever the maze. A numbered legend is shown next to the readout |
+| `maze_branch_cycle` | Deeper than the number of colors: off = last color (magenta = "this deep or more"), on = the rainbow restarts |
 
 Note: the direct SVG export ("SVG direct") only contains the walls, not the solution.
 

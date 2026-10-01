@@ -330,6 +330,144 @@ class MazeGenerator
   // also runs half a cell out through the entrance and exit.
   void buildSolution(DataMaze d, PolylineGroup out)
   {
+    ArrayList<Integer> path = findSolutionPath();
+    if (path == null)
+      return;
+
+    float cs = d.maze_cell_size;
+    float x0 = -cols * cs * 0.5;
+    float y0 = -rows * cs * 0.5;
+
+    ArrayList<PVector> pts = new ArrayList<PVector>();
+    if (d.maze_openings && startCell[2] != NO_DIR)
+      pts.add(outsidePoint(startCell, x0, y0, cs));
+    for (int i = path.size() - 1; i >= 0; i--)
+    {
+      int id = path.get(i);
+      pts.add(cellCenter(id, x0, y0, cs));
+    }
+    if (d.maze_openings && endCell[2] != NO_DIR)
+      pts.add(outsidePoint(endCell, x0, y0, cs));
+
+    Polyline line = new Polyline();
+    for (int i = 0; i < pts.size(); i++)
+    {
+      boolean endpoint = (i == 0 || i == pts.size() - 1);
+      if (endpoint || !isCollinear(pts.get(i - 1), pts.get(i), pts.get(i + 1)))
+        line.addPoint(pts.get(i));
+    }
+    out.add(line);
+  }
+
+  PVector cellCenter(int id, float x0, float y0, float cs)
+  {
+    return new PVector(x0 + (id % cols + 0.5) * cs, y0 + (id / cols + 0.5) * cs);
+  }
+
+  // Branch preview stats, filled by buildBranches().
+  int deadEnds = 0;
+  int maxBranchDepth = 0;
+
+  // Every passage off the solution, as polylines through cell centers grouped by depth:
+  // levels.get(k) holds depth k+1, where depth = how many forks you go through from the
+  // solution to get there (a branch leaving the solution directly is depth 1, a branch
+  // forking off it is depth 2, ...). The center room counts as part of the solution.
+  // A polyline runs from the cell it branches off (fork or solution cell) through
+  // single-path cells, and stops at a fork or a dead end - so each one has one depth.
+  void buildBranches(DataMaze d, ArrayList<PolylineGroup> levels)
+  {
+    levels.clear();
+    deadEnds = 0;
+    maxBranchDepth = 0;
+
+    ArrayList<Integer> path = findSolutionPath();
+    if (path == null)
+      return;
+
+    float cs = d.maze_cell_size;
+    float x0 = -cols * cs * 0.5;
+    float y0 = -rows * cs * 0.5;
+
+    boolean[][] done = new boolean[rows][cols];
+    for (int id : path)
+      done[id / cols][id % cols] = true;
+    for (int r = 0; r < rows; r++)
+      for (int c = 0; c < cols; c++)
+        if (isRoom[r][c])
+          done[r][c] = true;
+
+    // Pending branch starts as {fromId, firstCellId, depth}.
+    ArrayList<int[]> pending = new ArrayList<int[]>();
+    for (int r = 0; r < rows; r++)
+      for (int c = 0; c < cols; c++)
+        if (done[r][c])
+          addChildren(r * cols + c, 1, done, pending);
+
+    while (!pending.isEmpty())
+    {
+      int[] b = pending.remove(pending.size() - 1);
+      int depth = b[2];
+      while (levels.size() < depth)
+        levels.add(new PolylineGroup());
+      maxBranchDepth = max(maxBranchDepth, depth);
+
+      ArrayList<PVector> pts = new ArrayList<PVector>();
+      pts.add(cellCenter(b[0], x0, y0, cs));
+      int cur = b[1];
+      while (true)
+      {
+        pts.add(cellCenter(cur, x0, y0, cs));
+        int children = addChildren(cur, depth + 1, done, pending);
+        if (children == 1)
+        {
+          // Single way on: keep the same polyline, same depth.
+          int[] only = pending.remove(pending.size() - 1);
+          cur = only[1];
+          continue;
+        }
+        if (children == 0)
+          deadEnds++;
+        // children >= 2: a fork - the new entries (depth + 1) start their own polylines.
+        break;
+      }
+
+      Polyline line = new Polyline();
+      for (int i = 0; i < pts.size(); i++)
+      {
+        boolean endpoint = (i == 0 || i == pts.size() - 1);
+        if (endpoint || !isCollinear(pts.get(i - 1), pts.get(i), pts.get(i + 1)))
+          line.addPoint(pts.get(i));
+      }
+      levels.get(depth - 1).add(line);
+    }
+  }
+
+  // Queues every not-yet-done open neighbor of cell `id` as a branch start at `depth`,
+  // marking it done. Returns how many were queued.
+  int addChildren(int id, int depth, boolean[][] done, ArrayList<int[]> pending)
+  {
+    int r = id / cols;
+    int c = id % cols;
+    int n = 0;
+    for (int dir = 0; dir < 4; dir++)
+    {
+      if (!isOpen(r, c, dir))
+        continue;
+      int nr = r + DIRS[dir][0];
+      int nc = c + DIRS[dir][1];
+      if (done[nr][nc])
+        continue;
+      done[nr][nc] = true;
+      pending.add(new int[] { id, nr * cols + nc, depth });
+      n++;
+    }
+    return n;
+  }
+
+  // Cell ids of the solution, from exit back to entrance (breadth-first search; in a
+  // perfect maze the one and only path), or null if there's none.
+  ArrayList<Integer> findSolutionPath()
+  {
     int[][] parent = new int[rows][cols];
     for (int[] line : parent) java.util.Arrays.fill(line, -1);
 
@@ -361,7 +499,7 @@ class MazeGenerator
     }
 
     if (parent[endCell[0]][endCell[1]] == -1)
-      return;
+      return null;
 
     // Walk back from the goal, collecting cell ids from goal to start.
     ArrayList<Integer> path = new ArrayList<Integer>();
@@ -371,30 +509,7 @@ class MazeGenerator
       if (id == start)
         break;
     }
-
-    float cs = d.maze_cell_size;
-    float x0 = -cols * cs * 0.5;
-    float y0 = -rows * cs * 0.5;
-
-    ArrayList<PVector> pts = new ArrayList<PVector>();
-    if (d.maze_openings && startCell[2] != NO_DIR)
-      pts.add(outsidePoint(startCell, x0, y0, cs));
-    for (int i = path.size() - 1; i >= 0; i--)
-    {
-      int id = path.get(i);
-      pts.add(new PVector(x0 + (id % cols + 0.5) * cs, y0 + (id / cols + 0.5) * cs));
-    }
-    if (d.maze_openings && endCell[2] != NO_DIR)
-      pts.add(outsidePoint(endCell, x0, y0, cs));
-
-    Polyline line = new Polyline();
-    for (int i = 0; i < pts.size(); i++)
-    {
-      boolean endpoint = (i == 0 || i == pts.size() - 1);
-      if (endpoint || !isCollinear(pts.get(i - 1), pts.get(i), pts.get(i + 1)))
-        line.addPoint(pts.get(i));
-    }
-    out.add(line);
+    return path;
   }
 
   // Half a cell outside the maze, through the endpoint's opening.

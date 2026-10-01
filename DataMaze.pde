@@ -33,6 +33,15 @@ class DataMaze extends GenericData
   // Solution path (entrance -> exit), drawn in its own color.
   boolean maze_show_solution  = false;
   color   maze_solution_color = color(255, 60, 60);
+
+  // Preview of every other passage (dead-end branches), colored by depth = how many
+  // forks away from the solution, on a fixed rainbow of maze_branch_depth_scale
+  // distinct colors (depth 1 = first color), so a given color always means the same
+  // depth whatever the maze. Beyond it: stays on the last color, or (maze_branch_cycle)
+  // the rainbow restarts. Screen only - never exported.
+  boolean maze_show_branches       = false;
+  int     maze_branch_depth_scale  = 10;
+  boolean maze_branch_cycle        = false;
 }
 
 
@@ -51,6 +60,9 @@ class MazeGUI extends GUIPanel
   Slider maze_straightness;
   Toggle maze_show_solution;
   Button maze_solution_color;
+  Toggle maze_show_branches;
+  Slider maze_branch_depth_scale;
+  Toggle maze_branch_cycle;
 
   MazeGUI(DataMaze maze)
   {
@@ -110,6 +122,12 @@ class MazeGUI extends GUIPanel
       }
     }
     );
+
+    maze_show_branches = addToggle("maze_show_branches", "Show Branches");
+    nextLine();
+    maze_branch_depth_scale = addIntSlider("maze_branch_depth_scale", "Depth Colors", 2, 30);
+    maze_branch_cycle = addToggle("maze_branch_cycle", "Cycle");
+    nextLine();
   }
 
   static final int GRID_BUTTON = 30;
@@ -145,5 +163,8 @@ class MazeGUI extends GUIPanel
     maze_straightness.setValue(maze.maze_straightness);
     maze_show_solution.setValue(maze.maze_show_solution);
     maze_solution_color.setColorBackground(maze.maze_solution_color);
+    maze_show_branches.setValue(maze.maze_show_branches);
+    maze_branch_depth_scale.setValue(maze.maze_branch_depth_scale);
+    maze_branch_cycle.setValue(maze.maze_branch_cycle);
   }
 }
